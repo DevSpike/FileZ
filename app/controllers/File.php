@@ -40,8 +40,41 @@ class App_Controller_File extends Fz_Controller {
 
         fz_log ('downloading '.$file->getFileName ());
         
-        $this->sendFileDownloadedMail ($file);
+        /* Patch email_on_download on 07/04/2016 by Joffrey Desjardins (contact for help or question: joffrey.desjardins@gmail.com) */
+        if( fz_config_get ('app', 'allow_email_on_download') == 1) {
+            $user = $this->getUser ();
+            $mail = $this->createMail();
+            $subject = __r('[FileZ] (%firstname% %lastname%) Le fichier "%file_name%" a été téléchargé', array (
+            'firstname' => $user->firstname,
+            'lastname' => $user->lastname,
+            'file_name' => $file->file_name,
+            ));
+            $msg = __r('Le fichier "%file_name%" mis en ligne par %firstname% %lastname% a été téléchargé le %date% à %heure% par %ip%. Au total, le fichier a été téléchargé %download_count% fois. Il ne sera plus disponible le %available_until%.', array(
+            'file_name' => $file->file_name,
+            'firstname' => $user->firstname,
+            'lastname' => $user->lastname,
+            'file_size'  => $file->file_size,
+            'date'       => $date,
+            'heure'       => $heure,
+            'ip' => $_SERVER["REMOTE_ADDR"],
+            'download_count'    => $file->download_count,
+			'available_until' => $file->getAvailableUntil()->toString (Zend_Date::DATE_FULL),
+            ));
 
+            $mail->setBodyText ($msg);
+            $mail->setSubject  ($subject);
+            $mail->addTo ($user->email, (string)$user);
+            $mail->addBcc (fz_config_get ('app', 'account_email_on_download'));
+
+            try {
+                $mail->send ();
+            }
+            catch (Exception $e) {
+                fz_log ('Can\'t send email "File Uploaded" : '.$e, FZ_LOG_ERROR);
+            }
+        }
+        /* End patch*/
+        
         return $this->sendFile ($file);
     }
 
